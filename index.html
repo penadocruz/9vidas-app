@@ -80,8 +80,17 @@
   .badge.Vendida { background: var(--sold-bg); color: var(--sold); }
   .empty { text-align: center; color: var(--muted); padding: 40px 0; }
 
-  #fab { display: inline-flex; align-items: center; gap: 8px; position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); height: 56px; padding: 0 22px; border: 0;
-    border-radius: 28px; background: var(--accent); color: var(--accent-text); font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(0,0,0,.2); z-index: 6; }
+  /* Menú flotante inferior */
+  #dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 6;
+    display: flex; gap: 4px; padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.08); }
+  #dock button { display: grid; place-items: center; width: 64px; height: 52px; border: 0; border-radius: 999px; background: none; color: var(--text); }
+  #dock button .ic { width: 26px; height: 26px; }
+  #dock button.main { background: var(--bg); }
+  #dock button:active { background: var(--line); }
+  #dock button.spin .ic { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-color-scheme: dark) { #dock { box-shadow: 0 8px 24px rgba(0,0,0,.5); } }
 
   .view { position: fixed; inset: 0; z-index: 10; background: var(--bg); display: flex; flex-direction: column; }
   .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
@@ -129,7 +138,7 @@
   .menu > div { width: 100%; background: var(--bg); border-radius: 16px 16px 0 0; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); display: grid; gap: 8px; }
   .menu a, .menu button { text-decoration: none; color: var(--text); }
 
-  #toast { position: fixed; left: 16px; right: 16px; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 30; background: var(--accent); color: var(--accent-text);
+  #toast { position: fixed; left: 16px; right: 16px; bottom: calc(92px + env(safe-area-inset-bottom)); z-index: 30; background: var(--accent); color: var(--accent-text);
     padding: 12px 14px; border-radius: 12px; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s; }
   #toast.show { opacity: 1; }
   @media (min-width: 720px) { main, .body { max-width: 720px; margin: 0 auto; width: 100%; } }
@@ -141,7 +150,6 @@
   <div class="top">
     <b>9vidas</b>
     <span id="stats">Cargando…</span>
-    <button class="icon" id="menuBtn" aria-label="Más opciones" data-ic="more"></button>
   </div>
   <div class="search"><span data-ic="search"></span><input id="q" type="search" placeholder="Buscar en todo el inventario"></div>
   <div class="tabs" id="tabs">
@@ -152,7 +160,11 @@
 </header>
 
 <main id="list"></main>
-<button id="fab" data-ic="plus">Nueva</button>
+<nav id="dock" aria-label="Acciones">
+  <button id="navNew" class="main" data-ic="plus" aria-label="Nueva cartera" title="Nueva cartera"></button>
+  <button id="navReload" data-ic="refresh" aria-label="Actualizar" title="Actualizar"></button>
+  <button id="navMore" data-ic="more" aria-label="Más opciones" title="Más opciones"></button>
+</nav>
 
 <!-- Menú -->
 <div class="menu" id="menu" hidden>
@@ -162,7 +174,6 @@
     <a class="btn" id="dlXlsx" target="_blank" rel="noopener" data-ic="download">Descargar inventario (Excel)</a>
     <a class="btn" id="dlCsv" target="_blank" rel="noopener" data-ic="download">Descargar inventario (CSV)</a>
     <a class="btn" id="openSheet" target="_blank" rel="noopener" data-ic="sheet">Abrir hoja de cálculo</a>
-    <button class="btn" id="reload" data-ic="refresh">Actualizar datos</button>
     <button class="btn" id="openUsers" data-ic="users" hidden>Usuarios</button>
     <button class="btn" id="logout" data-ic="logout"><span>Cerrar sesión</span></button>
     <button class="link" data-close-menu style="justify-self:center" data-ic="x">Cerrar</button>
@@ -312,7 +323,7 @@
 
   /* ---------- API (Apps Script o modo demo local) ---------- */
   var API_URL = 'https://script.google.com/macros/s/AKfycbyoZFVpLEcJpDU6wYstkE9Zdf6sSgc0eAetRpcpkHdwVMzQkJ3gff8bAmF0S038gOL4/exec';
-  var DEMO = location.protocol === 'file:' || /[?&]demo\b/.test(location.search);
+  var DEMO = !/^https?:$/.test(location.protocol) || /[?&]demo\b/.test(location.search);
   var SESSION_STORE = '9vidas-session';
   var OLD_KEY_STORE = '9vidas-key';   // enlace de acceso anterior: solo sirve para crear el primer usuario
 
@@ -594,7 +605,7 @@
       S.items = S.items.filter(function (x) { return x.codigo !== c; }); render(); closeViews(); toast('Eliminada ' + c);
     }).catch(fail);
   });
-  $('fab').addEventListener('click', function () { openForm(null); });
+  $('navNew').addEventListener('click', function () { openForm(null); });
 
   /* ---------- Lote ---------- */
   function openBatch() { S.batch = []; $('pasteBox').value = ''; renderBatch(); $('menu').hidden = true; $('batch').hidden = false; }
@@ -672,22 +683,27 @@
   });
 
   /* ---------- Menú y navegación ---------- */
-  $('menuBtn').addEventListener('click', function () { $('menu').hidden = false; });
+  $('navMore').addEventListener('click', function () { $('menu').hidden = false; });
   $('menu').addEventListener('click', function (e) { if (e.target === this || e.target.closest('[data-close-menu]') || e.target.closest('a')) this.hidden = true; });
   $('openBatch').addEventListener('click', openBatch);
-  $('reload').addEventListener('click', function () { $('menu').hidden = true; load(); });
+  $('navReload').addEventListener('click', function () {
+    var b = this; if (b.classList.contains('spin')) return;
+    b.classList.add('spin');
+    load(true).then(function () { b.classList.remove('spin'); });
+  });
   function closeViews() { $('form').hidden = true; $('batch').hidden = true; $('users').hidden = true; }
   Array.prototype.forEach.call(document.querySelectorAll('[data-close]'), function (b) { b.addEventListener('click', closeViews); });
 
-  function load() {
-    api('init').then(function (r) {
+  function load(manual) {
+    return api('init').then(function (r) {
+      if (manual) toast('Inventario actualizado');
       S.items = r.items; S.meta = r;
       var base = 'https://docs.google.com/spreadsheets/d/' + r.ssId + '/export?gid=' + r.gid + '&format=';
       $('dlXlsx').href = r.ssId ? base + 'xlsx' : '#';
       $('dlCsv').href = r.ssId ? base + 'csv' : '#';
       $('openSheet').href = r.sheetUrl;
       render();
-      if (DEMO) toast('Modo demo: los datos se guardan solo en este navegador');
+      if (DEMO && !manual) toast('Modo demo: los datos se guardan solo en este navegador');
     }).catch(fail);
   }
 
